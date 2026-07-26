@@ -29,11 +29,19 @@ const money = (amount) =>
 function productArtwork(product) {
   if (product.image) {
     return `
-      <img
-        src="${product.image}"
-        alt="${product.name}"
-        style="position:relative;z-index:2;width:100%;height:250px;object-fit:contain;padding:24px;"
-      />
+      <button
+        class="product-image-zoom"
+        type="button"
+        data-full-image="${product.image}"
+        data-image-name="${product.name}"
+        aria-label="Enlarge image of ${product.name}"
+      >
+        <img
+          src="${product.image}"
+          alt="${product.name}"
+        />
+        <span class="zoom-hint">Tap to enlarge</span>
+      </button>
     `;
   }
 
@@ -62,6 +70,174 @@ function productArtwork(product) {
       ${product.category.toUpperCase()}
     </div>
   `;
+}
+
+
+function setupImageLightbox() {
+  if (document.getElementById("imageLightbox")) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.textContent = `
+    .product-image-zoom {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 250px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      overflow: hidden;
+      color: white;
+      background: transparent;
+      border: 0;
+    }
+
+    .product-image-zoom img {
+      width: 100%;
+      height: 250px;
+      padding: 18px;
+      object-fit: contain;
+      transition: transform 0.22s ease;
+    }
+
+    .product-image-zoom:hover img,
+    .product-image-zoom:focus-visible img {
+      transform: scale(1.035);
+    }
+
+    .zoom-hint {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      padding: 6px 9px;
+      color: #e8fbff;
+      background: rgba(4, 12, 22, 0.82);
+      border: 1px solid rgba(92, 232, 255, 0.28);
+      border-radius: 999px;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(10px);
+    }
+
+    .image-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      display: none;
+      place-items: center;
+      padding: 18px;
+      background: rgba(1, 5, 10, 0.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .image-lightbox.open {
+      display: grid;
+    }
+
+    .image-lightbox-content {
+      width: min(980px, 100%);
+      max-height: 94vh;
+      position: relative;
+      display: grid;
+      gap: 12px;
+      place-items: center;
+    }
+
+    .image-lightbox img {
+      width: 100%;
+      max-height: 82vh;
+      object-fit: contain;
+      border: 1px solid rgba(126, 184, 255, 0.18);
+      border-radius: 18px;
+      background: #07101b;
+    }
+
+    .image-lightbox-caption {
+      margin: 0;
+      color: #dce9f7;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .image-lightbox-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 2;
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      color: white;
+      background: rgba(4, 12, 22, 0.84);
+      border: 1px solid rgba(126, 184, 255, 0.25);
+      border-radius: 50%;
+      font-size: 1.45rem;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const lightbox = document.createElement("div");
+  lightbox.id = "imageLightbox";
+  lightbox.className = "image-lightbox";
+  lightbox.setAttribute("aria-hidden", "true");
+  lightbox.innerHTML = `
+    <div class="image-lightbox-content" role="dialog" aria-modal="true" aria-label="Enlarged product image">
+      <button
+        class="image-lightbox-close"
+        id="imageLightboxClose"
+        type="button"
+        aria-label="Close enlarged image"
+      >
+        ×
+      </button>
+      <img id="imageLightboxImage" src="" alt="" />
+      <p class="image-lightbox-caption" id="imageLightboxCaption"></p>
+    </div>
+  `;
+
+  document.body.appendChild(lightbox);
+
+  lightbox.addEventListener("click", (event) => {
+    if (event.target === lightbox) {
+      closeImageLightbox();
+    }
+  });
+
+  document
+    .getElementById("imageLightboxClose")
+    .addEventListener("click", closeImageLightbox);
+}
+
+function openImageLightbox(imagePath, productName) {
+  const lightbox = document.getElementById("imageLightbox");
+  const image = document.getElementById("imageLightboxImage");
+  const caption = document.getElementById("imageLightboxCaption");
+
+  image.src = imagePath;
+  image.alt = productName;
+  caption.textContent = productName;
+
+  lightbox.classList.add("open");
+  lightbox.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function closeImageLightbox() {
+  const lightbox = document.getElementById("imageLightbox");
+
+  if (!lightbox) {
+    return;
+  }
+
+  lightbox.classList.remove("open");
+  lightbox.setAttribute("aria-hidden", "true");
+
+  if (!productModal.classList.contains("open")) {
+    document.body.classList.remove("modal-open");
+  }
 }
 
 function renderProducts() {
@@ -337,6 +513,19 @@ async function loadProducts() {
   }
 }
 
+productGrid.addEventListener("click", (event) => {
+  const zoomButton = event.target.closest(".product-image-zoom");
+
+  if (!zoomButton) {
+    return;
+  }
+
+  openImageLightbox(
+    zoomButton.dataset.fullImage,
+    zoomButton.dataset.imageName
+  );
+});
+
 searchInput.addEventListener("input", renderProducts);
 categoryFilter.addEventListener("change", renderProducts);
 sortFilter.addEventListener("change", renderProducts);
@@ -397,7 +586,9 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeCart();
     closeProduct();
+    closeImageLightbox();
   }
 });
 
+setupImageLightbox();
 loadProducts();
